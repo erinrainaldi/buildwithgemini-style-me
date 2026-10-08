@@ -566,11 +566,16 @@ async def generate_outfit_image(
                 "message": "Please provide either item_ids from the closet or an outfit_description.",
             }
 
+        # Always save to storage so the returned image has a public HTTPS URL that renders in A2UI and the web interface
+        save_to_storage = True
+
         prompt = (
-            "Professional high-fashion studio photograph of a complete, coordinated outfit elegantly styled and displayed on a sleek, headless female mannequin. "
-            f"{items_instruction}"
-            "Each clothing and accessory item listed above must be distinctly visible and worn naturally on the female mannequin as a fully assembled look. "
-            "Clean luxury boutique aesthetic, neutral warm alabaster studio background, high-fashion editorial styling, soft diffused studio lighting."
+            "A high-fashion luxury studio photograph of a full outfit styled on a featureless, sleek headless female mannequin. "
+            "IMPORTANT DISPLAY REQUIREMENT: The entire outfit MUST be worn and displayed on an upright female mannequin in a boutique showroom or studio setting. "
+            "Do NOT create a flat lay or clothing lying flat on a surface. Do NOT show a human model or human face. It must be a headless female mannequin. "
+            f"{items_instruction} "
+            "Every item listed must be worn naturally by the female mannequin as a fully styled, coordinated look. "
+            "Editorial lighting, warm alabaster minimalist backdrop, 8k resolution, crisp texture detail."
         )
 
         # 2. Call gemini-3.1-flash-lite-image
@@ -660,8 +665,8 @@ instruction = schema_manager.generate_system_prompt(
         "3. Look up street style visual inspiration using `search_fashion_inspiration` when users want visual styling ideas or moodboards.\n"
         "4. Query closet items with `list_wardrobe_items` and pick specific complementary pieces (dresses, tops, bottoms, jackets, shoes, accessories).\n"
         "5. Wardrobe Item Management: When the user asks to add or upload a new piece to their closet, use `add_wardrobe_item`. When the user asks to remove, delete, or discard an item, use `remove_wardrobe_item`.\n"
-        "6. CRITICAL Outfit Image Generation: When the user asks to see an outfit or visualize pieces together, you MUST pass the exact `item_ids` of the individual pieces you picked from their closet (e.g. `item_ids=['item_dress_001', 'item_jacket_001', 'item_shoes_001']`) to `generate_outfit_image` so the generated image actually includes and reflects those specific items. Also include a rich `outfit_description` detailing the specific color, material, and styling of each piece as styled on a female mannequin.\n"
-        "7. Image Persistence Choice: Only set `save_to_storage=True` in `generate_outfit_image` if the user explicitly asks to save, store, or keep the image in their permanent closet storage; otherwise default to `save_to_storage=False` for temporary previews.\n"
+        "6. CRITICAL Outfit Image Generation: When the user asks to see an outfit or visualize pieces together, you MUST pass the exact `item_ids` of the individual pieces you picked from their closet (e.g. `item_ids=['item_dress_001', 'item_jacket_001', 'item_shoes_001']`) to `generate_outfit_image` so the generated image actually includes and reflects those specific items. Also include a rich `outfit_description` detailing the specific color, material, and styling of each piece. Note: Outfit images are ALWAYS styled on an upright, headless female mannequin.\n"
+        "7. Image Presentation: `generate_outfit_image` automatically uploads the generated visual to Google Cloud Storage and returns a public URL. You must ALWAYS use this `public_image_url` in an A2UI Image component so the user sees the styled female mannequin card in the chat UI.\n"
         "8. When presenting wardrobe pieces, curated outfit suggestions, or generated outfit visuals that have a public URL, return structured A2UI UI so they render as visual cards."
     ),
     ui_description=(
