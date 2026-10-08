@@ -635,17 +635,55 @@ async def generate_outfit_image(
             "saved_to_storage": save_to_storage,
             "public_image_url": public_url,
             "artifact_filename": filename if save_as_artifact else None,
-            "message": (
-                f"Generated outfit image containing all selected items and saved to Cloud Storage: {public_url}"
-                if save_to_storage
-                else "Generated outfit visual containing all selected items (preview)."
-            ),
+            "message": f"Generated mannequin outfit image: {public_url}",
         }
     except Exception as e:
         return {
             "status": "error",
             "message": f"Failed to generate outfit image: {str(e)}",
         }
+
+
+async def save_styled_look(
+    look_title: str,
+    item_ids: List[str],
+    image_url: str,
+    notes: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Save an assembled outfit look (with pieces and mannequin photo) to the user's permanent Saved Looks collection.
+
+    Args:
+        look_title: Title for the styled look, e.g. 'Autumn Silk & Wool Date Night' or 'Casual Office Friday'.
+        item_ids: List of wardrobe item IDs included in this look.
+        image_url: The public URL of the styled mannequin image from generate_outfit_image.
+        notes: Optional styling notes or occasion recommendations.
+
+    Returns:
+        Confirmation dictionary with the saved look ID and status.
+    """
+    try:
+        db = _get_firestore_client()
+        look_id = f"look_{uuid.uuid4().hex[:8]}"
+        doc_data = {
+            "id": look_id,
+            "title": look_title,
+            "item_ids": item_ids,
+            "image_url": image_url,
+            "notes": notes or "",
+            "created_at": firestore.SERVER_TIMESTAMP,
+        }
+        db.collection("saved_looks").document(look_id).set(doc_data)
+        return {
+            "status": "success",
+            "look_id": look_id,
+            "message": f"Successfully saved look '{look_title}' to your permanent Saved Looks collection!",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to save look: {str(e)}",
+        }
+
 
 
 # Initialize A2UI Schema Manager (v0.8)
@@ -664,9 +702,9 @@ instruction = schema_manager.generate_system_prompt(
         "2. Check color harmony or pairing suggestions using `get_color_palette_advice` to justify color combinations.\n"
         "3. Look up street style visual inspiration using `search_fashion_inspiration` when users want visual styling ideas or moodboards.\n"
         "4. Query closet items with `list_wardrobe_items` and pick specific complementary pieces (dresses, tops, bottoms, jackets, shoes, accessories).\n"
-        "5. Wardrobe Item Management: When the user asks to add or upload a new piece to their closet, use `add_wardrobe_item`. When the user asks to remove, delete, or discard an item, use `remove_wardrobe_item`.\n"
-        "6. CRITICAL Outfit Image Generation: When the user asks to see an outfit or visualize pieces together, you MUST pass the exact `item_ids` of the individual pieces you picked from their closet (e.g. `item_ids=['item_dress_001', 'item_jacket_001', 'item_shoes_001']`) to `generate_outfit_image` so the generated image actually includes and reflects those specific items. Also include a rich `outfit_description` detailing the specific color, material, and styling of each piece. Note: Outfit images are ALWAYS styled on an upright, headless female mannequin.\n"
-        "7. Image Presentation: `generate_outfit_image` automatically uploads the generated visual to Google Cloud Storage and returns a public URL. You must ALWAYS use this `public_image_url` in an A2UI Image component so the user sees the styled female mannequin card in the chat UI.\n"
+        "5. Wardrobe Item Management: When the user asks to add or upload a new piece to their closet, use `add_wardrobe_item`. When the user asks to remove, delete, or discard an item, use `remove_wardrobe_item`. When the user asks to save a styled look, use `save_styled_look`.\n"
+        "6. MANDATORY Mannequin Image Generation: Whenever you recommend or style an outfit, you MUST ALWAYS generate an image of it using `generate_outfit_image` passing the specific `item_ids` of the pieces you selected. The image will be generated on a sleek, headless female mannequin.\n"
+        "7. Display & Prompt User to Save: Present the styled mannequin visual inside an A2UI Card. Immediately below the outfit details, ALWAYS ask the user: 'Would you like to save this look to your permanent closet collection?'\n"
         "8. When presenting wardrobe pieces, curated outfit suggestions, or generated outfit visuals that have a public URL, return structured A2UI UI so they render as visual cards."
     ),
     ui_description=(
@@ -703,6 +741,7 @@ root_agent = Agent(
         get_color_palette_advice,
         search_fashion_inspiration,
         generate_outfit_image,
+        save_styled_look,
         list_wardrobe_items,
         add_wardrobe_item,
         remove_wardrobe_item,
