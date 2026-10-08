@@ -7,14 +7,63 @@ Agent generated with `agents-cli` version `1.4.0`
 
 ```
 style-me/
-├── app/         # Core agent code
-│   ├── agent.py               # Main agent logic
+├── app/                       # Core AI Stylist agent (ADK + A2UI)
+│   ├── agent.py               # Stylist logic, mannequin image generation, tools
 │   ├── fast_api_app.py        # FastAPI Backend server
 │   └── app_utils/             # App utilities and helpers
+├── frontend/                  # Web app (FastAPI proxy + luxury UI + closet manager)
+│   ├── main.py                # Image extraction, GCS caching, and A2A chat proxy
+│   ├── static/index.html      # Responsive luxury wardrobe manager & chat interface
+│   └── Dockerfile             # Container definition for Cloud Run
+├── sync_gcs_closet.py         # Batch image ingestion & Gemini Vision auto-cataloger
 ├── tests/                     # Unit, integration, and load tests
 ├── GEMINI.md                  # AI-assisted development guide
 └── pyproject.toml             # Project dependencies
 ```
+
+---
+
+## 📸 Batch Wardrobe Ingestion (`sync_gcs_closet.py`)
+
+You can upload folders of clothing images directly to your Google Cloud Storage bucket and automatically catalog them into your closet using Gemini Multimodal Vision.
+
+### Features
+- **Delta Sync**: Only inspects and catalogs new images not yet registered in Firestore.
+- **Multimodal AI Analysis (`gemini-2.5-flash`)**: Automatically identifies the item's name, category (`dresses`, `tops`, `bottoms`, `jackets`, `shoes`, `accessories`), dominant color, primary fabric/material, pattern, suitable occasions, and style tags.
+- **Immediate Availability**: Newly cataloged items appear instantly in the wardrobe grid and are accessible to the AI Stylist agent.
+
+### Step 1: Upload Images to Google Cloud Storage
+Use the Google Cloud CLI to copy local photos directly to your bucket:
+
+```bash
+# Upload an entire directory of photos:
+gcloud storage cp /path/to/my_clothes/* gs://style-me-closet-130f91/
+
+# Or upload a specific subfolder:
+gcloud storage cp -r /path/to/summer_capsule gs://style-me-closet-130f91/summer/
+```
+
+### Step 2: Run the Ingestion Script
+
+```bash
+# Preview what Gemini Vision detects without saving to the database:
+python sync_gcs_closet.py --dry-run
+
+# Run full sync and write items to Firestore:
+python sync_gcs_closet.py
+
+# Sync images from a specific folder prefix in the bucket:
+python sync_gcs_closet.py --prefix summer/
+```
+
+#### CLI Options
+| Flag | Description | Default |
+|---|---|---|
+| `--bucket` | Name of your GCS bucket | `style-me-closet-130f91` or `$GCS_BUCKET_NAME` |
+| `--prefix` | Subfolder prefix to search inside the bucket | `""` (root of bucket) |
+| `--dry-run` | Inspect & analyze images with Gemini without writing to Firestore | `False` |
+
+---
 
 > 💡 **Tip:** Use [Antigravity CLI](https://antigravity.google/) for AI-assisted development - project context is pre-configured in `GEMINI.md`.
 
