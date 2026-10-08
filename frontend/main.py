@@ -48,6 +48,112 @@ async def get_items(category: Optional[str] = None):
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 
+import urllib.parse
+from bs4 import BeautifulSoup
+
+async def _fetch_representative_image(url: str) -> Optional[str]:
+    """Fetch a web page and extract the most representative product image URL."""
+    print(f"[_fetch_representative_image] Attempting to fetch URL: {url}")
+    try:
+        # Normalize protocol if missing
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = "https://" + url
+
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15.0, headers=headers, verify=False) as client:
+            resp = await client.get(url)
+            print(f"[_fetch_representative_image] HTTP status: {resp.status_code}, content-type: {resp.headers.get('content-type')}")
+            if resp.status_code >= 400:
+                return None
+            
+            ct = resp.headers.get("content-type", "").lower()
+            if "image" in ct:
+                return url
+
+            soup = BeautifulSoup(resp.text, "html.parser")
+
+            # 1. OpenGraph image (og:image or og:image:secure_url)
+            for prop in ["og:image", "og:image:secure_url", "image"]:
+                og = soup.find("meta", property=prop) or soup.find("meta", attrs={"name": prop})
+                if og and og.get("content"):
+                    found = urllib.parse.urljoin(str(resp.url), og["content"].strip())
+                    print(f"[_fetch_representative_image] Found via meta {prop}: {found}")
+                    return found
+            
+            # 2. Twitter card image
+            for attr in ["twitter:image", "twitter:image:src"]:
+                tw = soup.find("meta", attrs={"name": attr}) or soup.find("meta", property=attr)
+                if tw and tw.get("content"):
+                    found = urllib.parse.urljoin(str(resp.url), tw["content"].strip())
+                    print(f"[_fetch_representative_image] Found via twitter card: {found}")
+                    return found
+            
+            # 3. JSON-LD structured data (Schema.org Product)
+            import json
+            for s in soup.find_all("script", type="application/ld+json"):
+                try:
+                    data = json.loads(s.string or "{}")
+                    if isinstance(data, list):
+                        items = data
+                    else:
+                        items = [data]
+                    for it in items:
+                        if isinstance(it, dict):
+                            img = it.get("image")
+                            if isinstance(img, str) and img:
+                                found = urllib.parse.urljoin(str(resp.url), img.strip())
+                                print(f"[_fetch_representative_image] Found via JSON-LD: {found}")
+                                return found
+                            elif isinstance(img, list) and img and isinstance(img[0], str):
+                                found = urllib.parse.urljoin(str(resp.url), img[0].strip())
+                                print(f"[_fetch_representative_image] Found via JSON-LD list: {found}")
+                                return found
+                except Exception:
+                    pass
+
+            # 4. Itemprop image tag
+            itemprop = soup.find("img", attrs={"itemprop": "image"})
+            if itemprop and (itemprop.get("src") or itemprop.get("data-src")):
+                src = itemprop.get("src") or itemprop.get("data-src")
+                found = urllib.parse.urljoin(str(resp.url), src.strip())
+                print(f"[_fetch_representative_image] Found via itemprop image: {found}")
+                return found
+            
+            # 5. Check largest image in page or prominent product image
+            for img in soup.find_all("img"):
+                src = img.get("src") or img.get("data-src") or img.get("data-lazy-src") or img.get("data-original")
+                if src and not src.endswith(".svg") and "logo" not in src.lower() and "icon" not in src.lower() and "avatar" not in src.lower():
+                    found = urllib.parse.urljoin(str(resp.url), src.strip())
+                    print(f"[_fetch_representative_image] Found via img fallback: {found}")
+                    return found
+
+    except Exception as ex:
+        print(f"[_fetch_representative_image] Exception fetching {url}: {ex}")
+    return None
+
+
+@app.post("/api/items/extract-image")
+async def extract_image_preview(data: Dict[str, str]):
+    """Preview representative image URL and title from a product link."""
+    url = data.get("url", "").strip()
+    if not url:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "URL is required"})
+    
+    img_url = await _fetch_representative_image(url)
+    return JSONResponse({
+        "status": "success",
+        "image_url": img_url,
+    })
+
+
 @app.post("/api/items/upload")
 async def upload_item(
     name: str = Form(...),
@@ -57,22 +163,52 @@ async def upload_item(
     brand: str = Form(""),
     occasions: str = Form("casual"),
     tags: str = Form(""),
+    item_url: str = Form(""),
     image: Optional[UploadFile] = File(None),
 ):
-    """Upload a new wardrobe item with optional image directly to GCS and Firestore."""
+    """Upload a new wardrobe item with either an uploaded file or an item product link."""
     try:
         image_url = ""
+        storage_client = _get_storage_client()
+        bucket = storage_client.bucket(GCS_BUCKET_NAME)
+
+        # Priority 1: User uploaded a file directly
         if image and image.filename:
             content_type = image.content_type or "image/jpeg"
             ext = image.filename.split(".")[-1] if "." in image.filename else "jpg"
             unique_name = f"item_{category.lower()}_{uuid.uuid4().hex[:8]}.{ext}"
 
             contents = await image.read()
-            storage_client = _get_storage_client()
-            bucket = storage_client.bucket(GCS_BUCKET_NAME)
             blob = bucket.blob(unique_name)
             blob.upload_from_string(contents, content_type=content_type)
             image_url = f"https://storage.googleapis.com/{GCS_BUCKET_NAME}/{unique_name}"
+
+        # Priority 2: User provided a product page link or direct image link
+        elif item_url.strip():
+            clean_url = item_url.strip()
+            # If user provided a link, fetch representative image
+            scraped_img = await _fetch_representative_image(clean_url)
+            target_fetch_url = scraped_img or clean_url
+
+            # Download the representative image and persist to user's GCS bucket
+            try:
+                headers = {"User-Agent": "Mozilla/5.0"}
+                async with httpx.AsyncClient(follow_redirects=True, timeout=12.0, headers=headers) as dl_client:
+                    img_resp = await dl_client.get(target_fetch_url)
+                    if img_resp.status_code == 200 and len(img_resp.content) > 100:
+                        ct = img_resp.headers.get("content-type", "image/jpeg")
+                        ext = "jpg"
+                        if "png" in ct:
+                            ext = "png"
+                        elif "webp" in ct:
+                            ext = "webp"
+                        unique_name = f"item_{category.lower()}_{uuid.uuid4().hex[:8]}.{ext}"
+                        blob = bucket.blob(unique_name)
+                        blob.upload_from_string(img_resp.content, content_type=ct)
+                        image_url = f"https://storage.googleapis.com/{GCS_BUCKET_NAME}/{unique_name}"
+            except Exception as dl_err:
+                print(f"Failed caching remote image to GCS, saving original link: {dl_err}")
+                image_url = scraped_img or clean_url
 
         item_id = f"item_{category.lower()}_{uuid.uuid4().hex[:8]}"
         occ_list = [o.strip().lower() for o in occasions.split(",") if o.strip()]
@@ -91,6 +227,7 @@ async def upload_item(
             "season": "all-season",
             "brand": brand.strip(),
             "image_url": image_url,
+            "source_url": item_url.strip(),
         }
 
         db = _get_firestore_client()

@@ -567,10 +567,10 @@ async def generate_outfit_image(
             }
 
         prompt = (
-            "Professional studio flat-lay fashion photograph of a complete, coordinated outfit. "
+            "Professional high-fashion studio photograph of a complete, coordinated outfit elegantly styled and displayed on a sleek, headless female mannequin. "
             f"{items_instruction}"
-            "Each clothing and accessory item listed above must be distinctly visible and neatly arranged together in one coordinated composition. "
-            "Clean aesthetic, neutral linen background, high fashion magazine editorial styling, soft diffused studio lighting."
+            "Each clothing and accessory item listed above must be distinctly visible and worn naturally on the female mannequin as a fully assembled look. "
+            "Clean luxury boutique aesthetic, neutral warm alabaster studio background, high-fashion editorial styling, soft diffused studio lighting."
         )
 
         # 2. Call gemini-3.1-flash-lite-image
@@ -660,7 +660,7 @@ instruction = schema_manager.generate_system_prompt(
         "3. Look up street style visual inspiration using `search_fashion_inspiration` when users want visual styling ideas or moodboards.\n"
         "4. Query closet items with `list_wardrobe_items` and pick specific complementary pieces (dresses, tops, bottoms, jackets, shoes, accessories).\n"
         "5. Wardrobe Item Management: When the user asks to add or upload a new piece to their closet, use `add_wardrobe_item`. When the user asks to remove, delete, or discard an item, use `remove_wardrobe_item`.\n"
-        "6. CRITICAL Outfit Image Generation: When the user asks to see an outfit or visualize pieces together, you MUST pass the exact `item_ids` of the individual pieces you picked from their closet (e.g. `item_ids=['item_dress_001', 'item_jacket_001', 'item_shoes_001']`) to `generate_outfit_image` so the generated image actually includes and reflects those specific items. Also include a rich `outfit_description` detailing the specific color, material, and styling of each piece.\n"
+        "6. CRITICAL Outfit Image Generation: When the user asks to see an outfit or visualize pieces together, you MUST pass the exact `item_ids` of the individual pieces you picked from their closet (e.g. `item_ids=['item_dress_001', 'item_jacket_001', 'item_shoes_001']`) to `generate_outfit_image` so the generated image actually includes and reflects those specific items. Also include a rich `outfit_description` detailing the specific color, material, and styling of each piece as styled on a female mannequin.\n"
         "7. Image Persistence Choice: Only set `save_to_storage=True` in `generate_outfit_image` if the user explicitly asks to save, store, or keep the image in their permanent closet storage; otherwise default to `save_to_storage=False` for temporary previews.\n"
         "8. When presenting wardrobe pieces, curated outfit suggestions, or generated outfit visuals that have a public URL, return structured A2UI UI so they render as visual cards."
     ),

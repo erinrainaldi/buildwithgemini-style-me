@@ -461,16 +461,60 @@
             <label>Occasions</label>
             <input type="text" id="up-occasions" placeholder="e.g. date night, dinner, formal">
           </div>
-          <div class="file-input-wrapper">
-            <label style="cursor:pointer; display:block;">
-              <span class="material-symbols-outlined" style="font-size:1.6rem; color:#718096;">cloud_upload</span>
-              <div style="font-size:0.85rem; font-weight:600; margin-top:0.2rem;">Choose Image File</div>
-              <div id="file-chosen" style="font-size:0.75rem; color:#a0aec0;">PNG, JPG, or WEBP</div>
-              <input type="file" id="up-file" accept="image/*" style="display:none;" onchange="onFileSelected(this)">
-            </label>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Image Source *</label>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <button type="button" id="tab-file-btn" class="filter-chip active" style="border-radius:12px; padding:0.4rem 0.8rem;" onclick="switchImageTab('file')">Upload Image File</button>
+              <button type="button" id="tab-url-btn" class="filter-chip" style="border-radius:12px; padding:0.4rem 0.8rem;" onclick="switchImageTab('url')">Provide Item / Product Link</button>
+            </div>
+
+            <!-- Option A: File Upload -->
+            <div id="source-file-block" class="file-input-wrapper">
+              <label style="cursor:pointer; display:block;">
+                <span class="material-symbols-outlined" style="font-size:1.6rem; color:var(--accent-gold);">cloud_upload</span>
+                <div style="font-size:0.85rem; font-weight:600; margin-top:0.2rem;">Choose Image File from Computer</div>
+                <div id="file-chosen" style="font-size:0.75rem; color:var(--text-secondary);">PNG, JPG, or WEBP</div>
+                <input type="file" id="up-file" accept="image/*" style="display:none;" onchange="onFileSelected(this)">
+              </label>
+              <!-- File Preview Card -->
+              <div id="file-preview-card" style="display:none; margin-top:0.85rem; background:#fff; border:1px solid var(--border); border-radius:10px; padding:0.6rem; align-items:center; gap:0.85rem; text-align:left;">
+                <img id="file-preview-img" src="" style="width:68px; height:68px; object-fit:cover; border-radius:8px; border:1px solid var(--border);">
+                <div style="flex:1;">
+                  <div style="font-size:0.8rem; font-weight:600; color:var(--text-primary);" id="file-preview-name">image.jpg</div>
+                  <div style="font-size:0.72rem; color:#38a169; margin-top:0.2rem; display:flex; align-items:center; gap:0.2rem;">
+                    <span class="material-symbols-outlined" style="font-size:0.95rem;">check_circle</span> Image ready for upload
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Option B: Web Link -->
+            <div id="source-url-block" style="display:none; background:#faf9f6; border:1px solid var(--border); border-radius:10px; padding:0.9rem;">
+              <div style="display:flex; gap:0.5rem; align-items:center;">
+                <input type="url" id="up-item-url" placeholder="https://www.reformation.com/products/silk-dress... or image link" style="flex:1; padding:0.6rem 0.75rem; border:1px solid var(--border); border-radius:8px; font-size:0.85rem;" onblur="previewUrlImage()">
+                <button type="button" class="nav-btn" style="background:var(--accent); color:#fff; border-radius:8px; padding:0.6rem 0.9rem;" onclick="previewUrlImage()">Fetch Image</button>
+              </div>
+
+              <!-- URL Fetched Image Preview Card -->
+              <div id="url-preview-container" style="display:none; margin-top:0.85rem; background:#ffffff; padding:0.85rem; border-radius:12px; border:1px solid var(--border); box-shadow:var(--shadow-subtle);">
+                <div style="display:flex; gap:0.95rem; align-items:center;">
+                  <img id="url-preview-img" src="" style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:1px solid var(--border); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                  <div style="flex:1; overflow:hidden;">
+                    <div style="display:inline-flex; align-items:center; gap:0.25rem; font-size:0.72rem; font-weight:600; color:#38a169; background:#f0fff4; padding:0.2rem 0.5rem; border-radius:12px; margin-bottom:0.35rem;">
+                      <span class="material-symbols-outlined" style="font-size:0.9rem;">check_circle</span> Preview Verified
+                    </div>
+                    <div style="font-size:0.82rem; font-weight:600; color:var(--text-primary); margin-bottom:0.2rem;">Representative Image Found</div>
+                    <div id="url-preview-txt" style="font-size:0.72rem; color:var(--text-secondary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:240px;"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="url-status" style="font-size:0.75rem; color:var(--text-secondary); margin-top:0.5rem; line-height:1.4;">Paste any product link or image URL. We'll automatically pull the clothing item's photo into your closet!</div>
+            </div>
           </div>
+
           <div class="drawer-actions">
-            <button type="button" class="nav-btn" style="color:#718096; border-color:#cbd5e0;" onclick="toggleUploadDrawer()">Cancel</button>
+            <button type="button" class="nav-btn" style="color:var(--text-secondary); border-color:var(--border);" onclick="toggleUploadDrawer()">Cancel</button>
             <button type="submit" class="upload-btn" id="up-submit-btn">Upload & Save to Closet</button>
           </div>
         </div>
@@ -517,14 +561,109 @@ function toggleUploadDrawer() {
   drawer.classList.toggle('open');
 }
 
+let currentImageSource = 'file';
+
+function switchImageTab(tab) {
+  currentImageSource = tab;
+  const fileBtn = document.getElementById('tab-file-btn');
+  const urlBtn = document.getElementById('tab-url-btn');
+  const fileBlock = document.getElementById('source-file-block');
+  const urlBlock = document.getElementById('source-url-block');
+
+  if (tab === 'file') {
+    fileBtn.classList.add('active');
+    urlBtn.classList.remove('active');
+    fileBlock.style.display = 'block';
+    urlBlock.style.display = 'none';
+  } else {
+    urlBtn.classList.add('active');
+    fileBtn.classList.remove('active');
+    fileBlock.style.display = 'none';
+    urlBlock.style.display = 'block';
+  }
+}
+
+async function previewUrlImage() {
+  const urlInput = document.getElementById('up-item-url');
+  const previewContainer = document.getElementById('url-preview-container');
+  const previewImg = document.getElementById('url-preview-img');
+  const previewTxt = document.getElementById('url-preview-txt');
+  const statusTxt = document.getElementById('url-status');
+
+  let val = urlInput.value.trim();
+  if (!val) {
+    previewContainer.style.display = 'none';
+    return;
+  }
+  if (!val.startsWith('http://') && !val.startsWith('https://')) {
+    val = 'https://' + val;
+    urlInput.value = val;
+  }
+
+  statusTxt.textContent = 'Extracting product image...';
+  statusTxt.style.color = 'var(--accent-gold)';
+
+  try {
+    const res = await fetch('/api/items/extract-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: val }),
+    });
+    const data = await res.json();
+    
+    // Choose extracted image or fall back to URL itself if it ends in an image extension
+    let targetImg = data.image_url;
+    if (!targetImg && /\.(jpg|jpeg|png|webp|avif|gif)(\?.*)?$/i.test(val)) {
+      targetImg = val;
+    }
+
+    if (targetImg) {
+      previewImg.onerror = () => {
+        previewContainer.style.display = 'none';
+        statusTxt.textContent = 'Image could not be rendered from that link. Try uploading a screenshot or another link.';
+        statusTxt.style.color = '#e53e3e';
+      };
+      previewImg.onload = () => {
+        previewContainer.style.display = 'block';
+        statusTxt.textContent = 'Representative image extracted! Click "Upload & Save to Closet" to store permanently.';
+        statusTxt.style.color = '#38a169';
+      };
+      previewImg.src = targetImg;
+      previewTxt.textContent = targetImg;
+    } else {
+      previewContainer.style.display = 'none';
+      statusTxt.textContent = 'Could not automatically find an image on that web page (it may be behind a login or blocked). You can upload a photo of it directly above!';
+      statusTxt.style.color = '#dd6b20';
+    }
+  } catch (err) {
+    previewContainer.style.display = 'none';
+    statusTxt.textContent = 'Error connecting to link: ' + err.message;
+    statusTxt.style.color = '#e53e3e';
+  }
+}
+
 function onFileSelected(input) {
   const label = document.getElementById('file-chosen');
+  const previewCard = document.getElementById('file-preview-card');
+  const previewImg = document.getElementById('file-preview-img');
+  const previewName = document.getElementById('file-preview-name');
+
   if (input.files && input.files[0]) {
-    label.textContent = input.files[0].name;
-    label.style.color = '#2d3748';
+    const file = input.files[0];
+    label.textContent = file.name;
+    label.style.color = 'var(--text-primary)';
+    previewName.textContent = file.name;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      previewImg.src = e.target.result;
+      previewCard.style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
   } else {
     label.textContent = 'PNG, JPG, or WEBP';
-    label.style.color = '#a0aec0';
+    label.style.color = 'var(--text-secondary)';
+    previewCard.style.display = 'none';
   }
 }
 
@@ -576,14 +715,41 @@ function renderItems(items) {
     meta.className = 'item-meta';
     meta.textContent = `${item.color} • ${item.material}`;
 
+    const cardFooter = document.createElement('div');
+    cardFooter.style.display = 'flex';
+    cardFooter.style.justifyContent = 'space-between';
+    cardFooter.style.alignItems = 'center';
+    cardFooter.style.marginTop = 'auto';
+
+    if (item.source_url) {
+      const srcLink = document.createElement('a');
+      srcLink.href = item.source_url;
+      srcLink.target = '_blank';
+      srcLink.rel = 'noopener noreferrer';
+      srcLink.title = `Original source: ${item.source_url}`;
+      srcLink.style.display = 'inline-flex';
+      srcLink.style.alignItems = 'center';
+      srcLink.style.gap = '0.2rem';
+      srcLink.style.fontSize = '0.72rem';
+      srcLink.style.color = 'var(--accent-gold)';
+      srcLink.style.textDecoration = 'none';
+      srcLink.innerHTML = '<span class="material-symbols-outlined" style="font-size:0.95rem;">link</span> Source';
+      cardFooter.appendChild(srcLink);
+    } else {
+      const spacer = document.createElement('span');
+      cardFooter.appendChild(spacer);
+    }
+
     const delBtn = document.createElement('button');
     delBtn.className = 'item-delete-btn';
     delBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:1rem;">delete</span> Remove';
     delBtn.onclick = () => deleteItem(item.id, item.name);
 
+    cardFooter.appendChild(delBtn);
+
     info.appendChild(name);
     info.appendChild(meta);
-    info.appendChild(delBtn);
+    info.appendChild(cardFooter);
 
     card.appendChild(img);
     card.appendChild(info);
@@ -595,7 +761,7 @@ async function handleUpload(event) {
   event.preventDefault();
   const submitBtn = document.getElementById('up-submit-btn');
   submitBtn.disabled = true;
-  submitBtn.textContent = 'Uploading...';
+  submitBtn.textContent = 'Saving...';
 
   try {
     const formData = new FormData();
@@ -606,9 +772,16 @@ async function handleUpload(event) {
     formData.append('brand', document.getElementById('up-brand').value);
     formData.append('occasions', document.getElementById('up-occasions').value);
 
-    const fileInput = document.getElementById('up-file');
-    if (fileInput.files[0]) {
-      formData.append('image', fileInput.files[0]);
+    if (currentImageSource === 'file') {
+      const fileInput = document.getElementById('up-file');
+      if (fileInput.files[0]) {
+        formData.append('image', fileInput.files[0]);
+      }
+    } else {
+      const itemUrl = document.getElementById('up-item-url').value.trim();
+      if (itemUrl) {
+        formData.append('item_url', itemUrl);
+      }
     }
 
     const res = await fetch('/api/items/upload', {
@@ -619,13 +792,15 @@ async function handleUpload(event) {
     if (result.status === 'success') {
       document.getElementById('upload-form').reset();
       document.getElementById('file-chosen').textContent = 'PNG, JPG, or WEBP';
+      document.getElementById('file-preview-card').style.display = 'none';
+      document.getElementById('url-preview-container').style.display = 'none';
       toggleUploadDrawer();
       await fetchClosetItems();
     } else {
-      alert('Upload failed: ' + (result.message || 'Unknown error'));
+      alert('Save failed: ' + (result.message || 'Unknown error'));
     }
   } catch (err) {
-    alert('Upload failed: ' + err.message);
+    alert('Save failed: ' + err.message);
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = 'Upload & Save to Closet';
