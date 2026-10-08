@@ -1,24 +1,53 @@
-# style-me
+# Style-Me: Luxury AI Personal Stylist & Virtual Wardrobe
 
-Simple ReAct agent
-Agent generated with `agents-cli` version `1.4.0`
+A multi-agent, visual personal stylist application built with the **Google Agent Development Kit (ADK)**, **Vertex AI Agent Engine (Reasoning Engine)**, **A2A Protocol**, and **Gemini 2.5/3.1** models.
 
-## Project Structure
+Style-Me connects to a personal closet database in Google Cloud Firestore and helps users assemble coordinated outfits based on occasion, weather, color harmony, and personal taste. For every recommended look, it generates high-fashion visual previews styled on a sleek, headless female mannequin.
+
+---
+
+## 🌟 Key Features
+
+1. **Virtual Closet Management**
+   - **Interactive Grid**: Browse closet pieces with category filtering (`dresses`, `tops`, `bottoms`, `jackets`, `shoes`, `accessories`).
+   - **Direct Image Upload**: Select files locally with instant thumbnail preview.
+   - **Product Link Scraper**: Paste a URL from any store; the system parses OpenGraph, Twitter Cards, Schema.org JSON-LD, or microdata to extract the representative product image and caches it in Google Cloud Storage for permanent provenance.
+   - **Provenance Badges**: Original source links are preserved and accessible directly on each closet piece card (`🔗 Source`).
+
+2. **Automated Batch Ingestion (`sync_gcs_closet.py`)**
+   - Upload hundreds of photos directly to Google Cloud Storage (`gs://<bucket>/`).
+   - Run the ingestion CLI to auto-catalog all unindexed pieces with **Gemini Multimodal Vision (`gemini-2.5-flash`)**, extracting title, category, dominant color, material, pattern, occasion, and style tags into Firestore.
+
+3. **Autonomous AI Stylist (`app/agent.py`)**
+   - Built on Google ADK with ReAct agent loop and cross-session memory (`PreloadMemoryTool` + `Vertex AI Memory Bank`).
+   - **Context-Aware Styling**: Checks real-time weather (`get_weather_for_outfit`), color wheel harmonies (`get_color_palette_advice`), and editorial street style inspirations (`search_fashion_inspiration`).
+   - **Mandatory Mannequin Outfits**: For every recommended outfit, invokes `generate_outfit_image` using `gemini-3.1-flash-lite-image` to generate a high-fashion look styled on an upright, headless female mannequin.
+   - **Saved Looks Prompting**: Automatically renders the look as an A2UI visual card and prompts the user whether they'd like to save the curated outfit to their permanent collection via `save_styled_look`.
+
+4. **Modern Luxury Frontend**
+   - Warm alabaster (`#f7f6f3`), obsidian (`#191c1f`), and champagne bronze (`#b38e5d`) editorial aesthetic with Playfair Display serif typography.
+   - Native A2UI component renderer embedded inside a FastAPI async proxy.
+   - Communicates with Vertex AI Agent Engine using the **A2A Protocol** (JSON-RPC over Server-Sent Events).
+
+---
+
+## 🏛️ Architecture & Project Structure
 
 ```
 style-me/
-├── app/                       # Core AI Stylist agent (ADK + A2UI)
-│   ├── agent.py               # Stylist logic, mannequin image generation, tools
-│   ├── fast_api_app.py        # FastAPI Backend server
-│   └── app_utils/             # App utilities and helpers
-├── frontend/                  # Web app (FastAPI proxy + luxury UI + closet manager)
-│   ├── main.py                # Image extraction, GCS caching, and A2A chat proxy
+├── app/                       # Core ADK Stylist Agent
+│   ├── agent.py               # Stylist logic, mannequin image generation, tools & callbacks
+│   ├── a2ui_utils.py          # A2UI v0.8 after_model_callback formatting
+│   ├── memory_utils.py        # Vertex AI Memory Bank long-term memory callbacks
+│   └── fast_api_app.py        # ADK API server
+├── frontend/                  # Web Application & A2A Proxy (Cloud Run)
+│   ├── main.py                # FastAPI proxy, product link scraper, GCS cache, and A2A event stream
 │   ├── static/index.html      # Responsive luxury wardrobe manager & chat interface
-│   └── Dockerfile             # Container definition for Cloud Run
-├── sync_gcs_closet.py         # Batch image ingestion & Gemini Vision auto-cataloger
-├── tests/                     # Unit, integration, and load tests
-├── GEMINI.md                  # AI-assisted development guide
-└── pyproject.toml             # Project dependencies
+│   ├── requirements.txt       # Frontend Python dependencies (FastAPI, httpx, bs4, firestore, etc.)
+│   └── Dockerfile             # Container definition for Cloud Run deployment
+├── sync_gcs_closet.py         # Batch GCS image ingestion & Gemini Vision auto-cataloger
+├── pyproject.toml             # Agent dependencies (google-adk, a2ui-agent-sdk, etc.)
+└── deployment_metadata.json   # Deployment tracking (Agent Runtime ID, target, timestamps)
 ```
 
 ---
@@ -65,79 +94,67 @@ python sync_gcs_closet.py --prefix summer/
 
 ---
 
-> 💡 **Tip:** Use [Antigravity CLI](https://antigravity.google/) for AI-assisted development - project context is pre-configured in `GEMINI.md`.
+## 🚀 Local Development
 
-## Requirements
+### Prerequisites
+- Python 3.11+
+- `uv`: [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
+- `agents-cli`: `uv tool install google-agents-cli`
+- Google Cloud SDK authenticated with Application Default Credentials:
+  ```bash
+  gcloud auth application-default login
+  ```
 
-Before you begin, ensure you have:
-- **uv**: Python package manager (used for all dependency management in this project) - [Install](https://docs.astral.sh/uv/getting-started/installation/) ([add packages](https://docs.astral.sh/uv/concepts/dependencies/) with `uv add <package>`)
-- **agents-cli**: Agents CLI - Install with `uv tool install google-agents-cli`
-- **Google Cloud SDK**: For GCP services - [Install](https://cloud.google.com/sdk/docs/install)
-
-
-## Quick Start
-
-Install `agents-cli` and its skills if not already installed:
-
+### Run the ADK Agent Locally
 ```bash
-uvx google-agents-cli setup
+uv sync
+.venv/bin/adk web --port 8000 app
 ```
+Navigate to `http://localhost:8000` to interact with the raw ADK agent and view A2UI execution graphs and artifacts.
 
-Install required packages:
-
+### Run the Custom Frontend Locally
+In a separate terminal:
 ```bash
-agents-cli install
+cd frontend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+LOCAL_AGENT_URL="http://127.0.0.1:8000" \
+AGENT_DIRECTORY="app" \
+PORT=8080 \
+python main.py
 ```
-
-Test the agent with a local web server:
-
-```bash
-agents-cli playground
-```
-
-You can also use features from the [ADK](https://adk.dev/) CLI with `uv run adk`.
-
-## Commands
-
-| Command              | Description                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------------- |
-| `agents-cli install` | Install dependencies using uv                                                         |
-| `agents-cli playground` | Launch local development environment                                                  |
-| `agents-cli lint`    | Run code quality checks                                                               |
-| `agents-cli eval`    | Evaluate agent behavior (generate, grade, analyze, and more — see `agents-cli eval --help`) |
-| `uv run pytest tests/unit tests/integration` | Run unit and integration tests                                                        |
-| `agents-cli deploy`  | Deploy agent to Agent Runtime                                                                |
-| `agents-cli publish gemini-enterprise` | Register deployed agent to Gemini Enterprise                    || [A2A Inspector](https://github.com/a2aproject/a2a-inspector) | Launch A2A Protocol Inspector                                                        |
-
-## 🛠️ Project Management
-
-| Command | What It Does |
-|---------|--------------|
-| `agents-cli scaffold enhance` | Add CI/CD pipelines and Terraform infrastructure |
-| `agents-cli infra cicd` | One-command setup of entire CI/CD pipeline + infrastructure |
-| `agents-cli scaffold upgrade` | Auto-upgrade to latest version while preserving customizations |
+Open `http://localhost:8080` to experience the full luxury wardrobe application.
 
 ---
 
-## Development
+## ☁️ Deployment
 
-Edit your agent logic in `app/agent.py` and test with `agents-cli playground` - it auto-reloads on save.
-
-## Deployment
-
+### 1. Deploy Agent to Vertex AI Agent Engine
 ```bash
-gcloud config set project <your-project-id>
-agents-cli deploy
+agents-cli deploy -d agent_runtime --region us-central1 --no-confirm-project
+```
+This updates the managed Reasoning Engine in Google Cloud (`us-central1`).
+
+### 2. Deploy Frontend to Cloud Run
+```bash
+cd frontend
+gcloud run deploy style-me-frontend \
+  --source . \
+  --region us-central1 \
+  --platform managed \
+  --allow-unauthenticated \
+  --set-env-vars AGENT_ENGINE_RESOURCE_NAME="projects/735121233253/locations/us-central1/reasoningEngines/5594825610397483008",AGENT_DIRECTORY="app"
 ```
 
-To add CI/CD and Terraform, run `agents-cli scaffold enhance`.
-To set up your production infrastructure, run `agents-cli infra cicd`.
+---
 
-## Observability
+## 🔒 Environment & Configuration Reference
 
-Built-in telemetry exports to Cloud Trace, BigQuery, and Cloud Logging.
-
-## A2A Inspector
-
-This agent supports the [A2A Protocol](https://a2a-protocol.org/). Use the [A2A Inspector](https://github.com/a2aproject/a2a-inspector) to test interoperability.
-See the [A2A Inspector docs](https://github.com/a2aproject/a2a-inspector) for details.
+| Environment Variable | Description | Example / Default |
+|---|---|---|
+| `PROJECT_ID` | GCP Project ID | `qwiklabs-gcp-04-a9587ec200a7` |
+| `GCS_BUCKET_NAME` | Bucket for closet and outfit images | `style-me-closet-130f91` |
+| `AGENT_ENGINE_RESOURCE_NAME` | Vertex AI Reasoning Engine ID | `projects/.../reasoningEngines/5594825610397483008` |
+| `PORT` | Web server listening port | `8080` |
